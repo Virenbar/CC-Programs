@@ -1,0 +1,253 @@
+os.loadAPI("button")
+local m = peripheral.wrap("right")
+local rsOut = {}
+local c = peripheral.wrap("container_chest_1")
+local a = peripheral.wrap("tt_magnet_0")
+local s = peripheral.wrap("tile_mfr_machine_autospawner_name_0")
+m.clear()
+local mobArray = {}
+local buttonColors = {}
+local attractorStatus = ""
+local page = 1
+local pages = 0
+local currMob = ""
+   
+function fillMainTable()
+   getCurrMob()
+   checkExact()
+   getAttractorStatus()
+   m.clear()
+   button.clearTable()
+   button.setTable("Lights", lights, "", 4, 17, 2, 4)
+   button.setTable("Door", door, "", 20, 33, 2, 4)
+   button.setTable("Grinders", grinders, "", 4, 17, 6, 8)
+   button.setTable("DrawBridge", drawBridge, "", 20, 33, 6, 8)
+   button.setTable("Attractor", attractorToggle, "", 4, 17, 10, 12)
+   button.setTable(attractorStatus, togglePush, "", 20, 33, 10, 12)
+   button.setTable("Mob Selector", mobSelect, "", 20, 33, 14, 16)
+   button.setTable("Spawner", spawner, "", 4, 17, 14, 16)
+   --button.setTable("Refresh", refresh, "", 15, 35, 19, 19)
+   print("Filled")
+   button.screen()
+   for i,j in pairs(buttonColors) do
+      if not rsOut[j] then button.toggleButton(i) end
+   end
+   button.toggleButton("Attractor")
+   button.label(1, 19, "Current Mob: "..currMob)
+   button.label(30, 19, "Exact: "..currExact)
+end
+
+function getAttractorStatus()
+   if a.isPulling() then
+      attractorStatus = "Pulling"
+   else
+      attractorStatus = "Pushing"
+   end
+end
+
+function togglePush()
+   button.flash(attractorStatus)
+   a.setPulling(not a.isPulling())
+   fillMainTable()
+end
+
+function fillTable()
+   checkMobs()
+   checkExact()
+   getCurrMob()
+   m.clear()
+   button.clearTable()
+   local totalrows = 0
+   local npp = 12 --names per page
+   local numNames = 0
+   local col = 2
+   local row = 12
+   local countRow = 1
+   local currName = 0
+   for i,j in pairs(mobArray) do
+      totalrows = totalrows+1
+   end
+   pages = math.ceil(totalrows/npp)
+   print(totalrows)
+   for name,slot in pairs(mobArray) do
+       currName = currName + 1
+       if currName > npp*(page-1) and currName < npp*page+1 then
+         row = 4+(countRow)
+         button.setTable(string.sub(name, 0, 17), insertMob, slot, col, col+17 , row, row)
+         if col == 21 then 
+           col = 2 
+           countRow = countRow + 2
+         else 
+           col = col+19 
+         end
+       end
+   end
+   button.setTable("Next Page", nextPage, "", 27, 38, 1, 1)
+   button.setTable("Prev Page", prevPage, "", 2, 13, 1, 1)
+   button.setTable("Main Menu", goMainMenu, "", 15, 25, 1, 1)
+   button.setTable("Exact: "..currExact, switchExact, "", 21, 38, 18, 19)
+   button.setTable("Remove Mob", removeMob, "", 2, 19, 18, 19)
+   button.screen()
+   button.label(15,3, "Page: "..tostring(page).." of "..tostring(pages))
+   button.label(12, 16, "Current Mob: "..currMob)
+end      
+
+function getCurrMob()
+   data = s.getStackInSlot(1)
+   if data then
+      currMob = data.captured
+   else
+      currMob = "None"
+   end
+end
+
+function goMainMenu()
+   fillMainTable()
+--   refresh()
+end
+
+function checkExact()
+   if s.getSpawnExact() then
+      currExact = "Yes"
+   else
+      currExact = "No"
+   end
+end
+
+function switchExact()
+   s.setSpawnExact(not s.getSpawnExact())
+   fillTable()
+end
+
+function nextPage()
+   if page+1 <= pages then 
+      page = page+1 
+   end
+   fillTable()
+   sleep(0.25)
+end
+
+function prevPage()
+   if page-1 >= 1 then page = page-1 end
+   fillTable()
+   sleep(0.25)
+end   
+                           
+function getMobs()
+   mobArray = {}
+   for i = 1,27  do
+      if c.getStackInSlot(i) then
+         data = c.getStackInSlot(i)
+         --print(i..":"..data.captured)
+         mobArray[data.captured] = i
+      end
+   end
+end
+
+function findEmptySlot()
+   for i = 1,27 do
+      if not c.getStackInSlot(i) then
+         return(i)
+      end
+   end
+end
+
+function removeMob()
+   local slot = findEmptySlot()
+   c.pullItem("down", 1, 1, slot)
+end
+
+function insertMob(info)
+   removeMob()
+   c.pushItem("down", info, 1, 1)
+   fillTable()
+end
+
+function checkMobs()
+   getMobs()
+   --fillTable()
+end
+
+function initRS()
+   rsOut[colors.white] = false
+   rsOut[colors.orange] = true
+   rsOut[colors.magenta] = false
+   rsOut[colors.lightBlue] = true
+   rsOut[colors.yellow] = false
+   rsOut[colors.lime] = true
+   buttonColors["Lights"] = colors.white
+   buttonColors["Spawner"] = colors.orange
+   buttonColors["Grinders"] = colors.magenta
+   buttonColors["DrawBridge"] = colors.lightBlue
+   buttonColors["Attractor"] = colors.yellow
+   buttonColors["Door"] = colors.lime
+end
+
+function setRS()
+   local colorOutput = 0
+   for i,j in pairs(rsOut) do
+      if j then colorOutput = colorOutput + i end
+	end
+	rs.setBundledOutput("left", colorOutput)
+end
+
+function lights()
+   button.toggleButton("Lights")
+   rsOut[colors.white] = not rsOut[colors.white]
+   setRS()
+end
+
+function door()
+   button.toggleButton("Door")
+   rsOut[colors.lime] = not rsOut[colors.lime]
+   setRS()
+end
+ 
+function spawner()
+   button.toggleButton("Spawner")
+   rsOut[colors.orange] = not rsOut[colors.orange]
+   setRS()
+end
+
+function grinders()
+   button.toggleButton("Grinders")
+   rsOut[colors.magenta] = not rsOut[colors.magenta]
+   setRS()
+end
+
+function drawBridge()
+   button.toggleButton("DrawBridge")
+   rsOut[colors.lightBlue] = not rsOut[colors.lightBlue]
+   setRS()
+end
+
+function attractorToggle()
+   button.toggleButton("Attractor")
+   rsOut[colors.yellow] = not rsOut[colors.yellow]
+   setRS()
+end
+
+function mobSelect()
+   fillTable()
+--   refresh()
+--   getClick()
+end
+
+function getClick()
+   local event,side,x,y = os.pullEvent()
+   if event=="monitor_touch" then
+     button.checkxy(x,y) 
+   end
+end
+
+function refresh()
+   m.clear()
+   print("Refreshed")
+   button.screen()
+end
+
+initRS()
+setRS()
+fillMainTable()
+--refresh()
+while true do getClick() end
